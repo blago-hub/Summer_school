@@ -1,0 +1,457 @@
+openapi: 3.0.3
+info:
+  title: Скалодром "Вертикаль" - Client API
+  version: 1.0.0
+  description: |
+    API для клиентского веб-приложения скалодрома.
+    Разделение ответственности:
+    - GET /formats, /instructors, /slots — Read-only (данные из существующего бэкенда).
+    - POST/PATCH /auth, /bookings, /reviews — Mutable (управляется новым приложением).
+  contact:
+    name: Летняя школа 2024
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Локальный сервер разработки
+
+tags:
+  - name: Auth & Client
+    description: Аутентификация и профиль клиента (Mutable)
+  - name: Catalog & Schedule
+    description: Справочники и расписание (Read-only)
+  - name: Bookings
+    description: Бронирования (Mutable)
+  - name: Reviews
+    description: Оценки и отзывы (Mutable)
+
+paths:
+  # --- AUTH & CLIENT ---
+  /auth/sms/send:
+    post:
+      tags: [Auth & Client]
+      summary: Отправка SMS с кодом подтверждения
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  example: "+79991234567"
+      responses:
+        '200':
+          description: SMS отправлено
+        '400':
+          description: Неверный формат телефона
+
+  /auth/sms/verify:
+    post:
+      tags: [Auth & Client]
+      summary: Верификация кода и получение токена
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                code:
+                  type: string
+      responses:
+        '200':
+          description: Успешный вход/регистрация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '401':
+          description: Неверный код
+
+  /clients/me:
+    get:
+      tags: [Auth & Client]
+      summary: Получить профиль текущего клиента
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Профиль клиента
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '401':
+          description: Не авторизован
+
+    patch:
+      tags: [Auth & Client]
+      summary: Обновить профиль клиента (имя, email)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Профиль обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+
+  # --- CATALOG & SCHEDULE (READ-ONLY) ---
+  /formats:
+    get:
+      tags: [Catalog & Schedule]
+      summary: Получить список форматов тренировок
+      responses:
+        '200':
+          description: Список форматов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingFormat'
+
+  /instructors:
+    get:
+      tags: [Catalog & Schedule]
+      summary: Получить список инструкторов
+      responses:
+        '200':
+          description: Список инструкторов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Instructor'
+
+  /slots:
+    get:
+      tags: [Catalog & Schedule]
+      summary: Получить расписание слотов (по умолчанию на 7 дней)
+      parameters:
+        - in: query
+          name: date_from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: date_to
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: format_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: instructor_id
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Список доступных слотов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingSlot'
+
+  /slots/{slot_id}:
+    get:
+      tags: [Catalog & Schedule]
+      summary: Получить детали конкретного слота
+      parameters:
+        - in: path
+          name: slot_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Детали слота
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingSlot'
+        '404':
+          description: Слот не найден
+
+  # --- BOOKINGS (MUTABLE) ---
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: Получить список бронирований клиента
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [confirmed, cancelled_by_client, cancelled_by_climbing_gym, completed]
+      responses:
+        '200':
+          description: Список бронирований
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+
+    post:
+      tags: [Bookings]
+      summary: Создать новое бронирование
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slot_id]
+              properties:
+                slot_id:
+                  type: string
+                  format: uuid
+                needs_equipment_rental:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: Бронирование создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Некорректные данные
+        '409':
+          description: Слот заполнен или отменен
+
+  /bookings/{booking_id}/cancel:
+    post:
+      tags: [Bookings]
+      summary: Отменить бронирование
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: booking_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Бронь отменена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Отмена невозможна (менее 2 часов до начала)
+        '404':
+          description: Бронь не найдена
+
+  # --- REVIEWS (MUTABLE) ---
+  /reviews:
+    post:
+      tags: [Reviews]
+      summary: Оставить оценку инструктору
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [booking_id, rating]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: Оценка сохранена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          description: Срок оценки истек или бронь не посещена
+        '409':
+          description: Оценка уже существует
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Client:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        is_loyal:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    TrainingFormat:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          enum: [boltering, rope_climbing]
+        description:
+          type: string
+        max_group_size:
+          type: integer
+        duration_minutes:
+          type: integer
+        difficulty_level:
+          type: string
+          enum: [beginner, advanced]
+
+    Instructor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        specialization:
+          type: string
+          enum: [beginner, advanced, both]
+        average_rating:
+          type: number
+          format: float
+        is_active:
+          type: boolean
+
+    TrainingSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        format_id:
+          type: string
+          format: uuid
+        instructor_id:
+          type: string
+          format: uuid
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        max_participants:
+          type: integer
+        current_participants:
+          type: integer
+        equipment_rental_price:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [active, full, cancelled_by_climbing_gym]
+        cancellation_reason:
+          type: string
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        slot_id:
+          type: string
+          format: uuid
+        needs_equipment_rental:
+          type: boolean
+        status:
+          type: string
+          enum: [confirmed, cancelled_by_client, cancelled_by_climbing_gym, completed]
+        created_at:
+          type: string
+          format: date-time
+        cancelled_at:
+          type: string
+          format: date-time
+        attended:
+          type: boolean
+        payment_status:
+          type: string
+          enum: [pending, paid_on_site]
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        booking_id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        instructor_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+        comment:
+          type: string
+        created_at:
+          type: string
+          format: date-time
