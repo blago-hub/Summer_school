@@ -339,10 +339,10 @@
 ### 8.1. Внутренние документы проекта
 
 - `docs/01_analysis.md` — Требования к MVP (User Stories, сценарии)
-- `docs/analysis/design.md` — Требования к дизайну (UX/UI)
-- `docs/analysis/domen_models.md` — Доменная модель и ER-диаграмма
-- `docs/analysis/OpenAPI.yaml` — OpenAPI Specification
-- `docs/analysis/TZ.md` — Настоящее ТЗ
+- `docs/02_design_brief.md` — Требования к дизайну (UX/UI)
+- `docs/03_data_model.md` — Доменная модель и ER-диаграмма
+- `docs/04_api_spec.yaml` — OpenAPI Specification
+- `docs/05_technical_specification.md` — Настоящее ТЗ
 
 ### 8.2. Внешние источники
 
@@ -383,13 +383,22 @@
 
 ### Приложение А: Sequence-диаграммы ключевых сценариев
 
+(См. `docs/03_data_model.md` — раздел "Sequence-диаграммы")
+
 ### Приложение Б: OpenAPI Specification
 
+(См. `docs/04_api_spec.yaml`)
 
 ### Приложение В: ER-диаграмма
 
+(См. `docs/03_data_model.md` — раздел "ER-модель")
 
 ### Приложение Г: Design Brief
 
+(См. `docs/02_design_brief.md`)
 
 ---
+
+**Документ подготовлен:** Команда летней школы 2026  
+**Дата утверждения:** 6 июля 2026  
+**Следующий этап:** Разработка MVP (Спринт 1: Базовая инфраструктура и регистрация)
